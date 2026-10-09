@@ -4,7 +4,7 @@ A beginner-friendly Machine Learning project that compares four classification a
 
 ## 🖥️ GUI Preview
 
-![Application GUI](gui.png)
+![Application GUI](assets/gui.png)
 
 ## 📊 Model Comparison
 
@@ -16,10 +16,10 @@ A beginner-friendly Machine Learning project that compares four classification a
     <td align="center"><b>SVM</b></td>
   </tr>
   <tr>
-    <td><img src="knn_confusion_matrix.png" width="180" alt="KNN Confusion Matrix"></td>
-    <td><img src="logistic_regression_confusion_matrix.png" width="180" alt="Logistic Regression Confusion Matrix"></td>
-    <td><img src="decision_tree_confusion_matrix.png" width="180" alt="Decision Tree Confusion Matrix"></td>
-    <td><img src="svm_confusion_matrix.png" width="180" alt="SVM Confusion Matrix"></td>
+    <td><img src="assets/knn_confusion_matrix.png" width="180" alt="KNN Confusion Matrix"></td>
+    <td><img src="assets/logistic_regression_confusion_matrix.png" width="180" alt="Logistic Regression Confusion Matrix"></td>
+    <td><img src="assets/decision_tree_confusion_matrix.png" width="180" alt="Decision Tree Confusion Matrix"></td>
+    <td><img src="assets/svm_confusion_matrix.png" width="180" alt="SVM Confusion Matrix"></td>
   </tr>
 </table>
 
