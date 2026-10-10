@@ -4,6 +4,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
@@ -14,10 +15,10 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test_split
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.linear_model import LogisticRegression
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_PATH = BASE_DIR / "heart.csv"
@@ -32,6 +33,14 @@ TREE_DEPTHS = list(range(2, 9))
 MODEL_NAMES = ["KNN", "Logistic Regression", "Decision Tree", "SVM"]
 METRIC_NAMES = ["Accuracy", "Precision", "Recall", "F1 Score", "Log Loss"]
 
+# The 10 predictor features, in the exact order the models are trained on.
+FEATURE_COLUMNS = ["Age", "Sex", "exang", "ca", "cp", "trtbps", "chol", "fbs", "rest_ecg", "thalach"]
+
+TARGET_MEANINGS = {0: "Low-risk class", 1: "High-risk class"}
+
+# Chest pain descriptions in dataset order (first code = typical angina, last = asymptomatic).
+CP_DESCRIPTIONS = ["Typical angina", "Atypical angina", "Non-anginal pain", "Asymptomatic"]
+
 # The CSV uses slightly different column names than the project description.
 COLUMN_RENAMES = {
     "age": "Age",
@@ -43,12 +52,18 @@ COLUMN_RENAMES = {
     "output": "target",
 }
 
+# Filled in by run_benchmark(). Holds the trained models so they are trained only once.
+_benchmark = None
+
 
 # ===== Stage 2: Load Data =====
 def load_data():
+    if not DATA_PATH.exists():
+        raise FileNotFoundError(f"Dataset not found: {DATA_PATH}\nPut heart.csv in the same folder as main.py.")
     df = pd.read_csv(DATA_PATH).rename(columns=COLUMN_RENAMES)
-    if "target" not in df.columns:
-        raise ValueError("heart.csv has no target column (expected 'output' or 'target').")
+    missing = [column for column in FEATURE_COLUMNS + ["target"] if column not in df.columns]
+    if missing:
+        raise ValueError(f"heart.csv is missing expected column(s): {missing}\nColumns found: {list(df.columns)}")
     return df
 
 
@@ -64,9 +79,20 @@ def inspect_data(df):
     print("=========================================\n")
 
 
+def detect_cp_offset(df):
+    # The first chest-pain code is either 0 or 1 depending on the dataset version.
+    # Reading it from the data keeps the labels (typical angina ... asymptomatic) correct
+    # without silently shifting what each code means.
+    low, high = int(df["cp"].min()), int(df["cp"].max())
+    if low not in (0, 1) or high != low + 3:
+        raise ValueError(f"Unexpected 'cp' values in heart.csv: found {low} to {high}, expected 0-3 or 1-4.")
+    return low
+
+
 # ===== Stage 3: Prepare X and y =====
 def prepare_x_y(df):
-    X = df.drop(columns=["target"])
+    # Only the 10 chosen predictors go into X. 'target' and any extra columns stay out.
+    X = df[FEATURE_COLUMNS]
     y = df["target"]
     return X, y
 
@@ -79,11 +105,9 @@ def split_data(X, y):
 
 
 # ===== Stage 5: Scaling =====
-def scale_data(X_train, X_test):
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-    return X_train_scaled, X_test_scaled
+# Scaling now lives inside each model's Pipeline (see the train_* functions below).
+# A Pipeline fits the scaler on the training data only, then reuses those same
+# learned values for every later prediction, including a single new patient.
 
 
 # ===== Stage 6: KNN =====
@@ -109,13 +133,15 @@ def find_best_k(X_train, y_train):
     return best_k, mean_f1_scores
 
 
-def train_knn(X_train_scaled, y_train, best_k):
-    return KNeighborsClassifier(n_neighbors=best_k).fit(X_train_scaled, y_train)
+def train_knn(X_train, y_train, best_k):
+    return make_pipeline(StandardScaler(), KNeighborsClassifier(n_neighbors=best_k)).fit(X_train, y_train)
 
 
 # ===== Stage 7: Logistic Regression =====
-def train_logistic_regression(X_train_scaled, y_train):
-    return LogisticRegression(max_iter=1000, random_state=RANDOM_STATE).fit(X_train_scaled, y_train)
+def train_logistic_regression(X_train, y_train):
+    return make_pipeline(
+        StandardScaler(), LogisticRegression(max_iter=1000, random_state=RANDOM_STATE)
+    ).fit(X_train, y_train)
 
 
 # ===== Stage 8: Decision Tree =====
@@ -132,13 +158,16 @@ def find_best_tree_depth(X_train, y_train):
 
 
 def train_decision_tree(X_train, y_train, max_depth):
-    return DecisionTreeClassifier(max_depth=max_depth, random_state=RANDOM_STATE).fit(X_train, y_train)
+    # Trees split on thresholds, so scaling would change nothing: no scaler here.
+    return make_pipeline(DecisionTreeClassifier(max_depth=max_depth, random_state=RANDOM_STATE)).fit(X_train, y_train)
 
 
 # ===== Stage 9: SVM =====
-def train_svm(X_train_scaled, y_train):
+def train_svm(X_train, y_train):
     # probability=True is required so SVC can provide probabilities for Log Loss.
-    return SVC(kernel="rbf", probability=True, random_state=RANDOM_STATE).fit(X_train_scaled, y_train)
+    return make_pipeline(
+        StandardScaler(), SVC(kernel="rbf", probability=True, random_state=RANDOM_STATE)
+    ).fit(X_train, y_train)
 
 
 # ===== Stage 10: Evaluation =====
@@ -241,43 +270,90 @@ def save_all_plots(benchmark):
     save_figure(draw_k_vs_f1(benchmark), "knn_k_vs_f1.png")
 
 
-# ===== Benchmark (runs once at startup) =====
+# ===== Training + evaluation (runs once at startup) =====
 def run_benchmark(verbose=True):
+    global _benchmark
+
     df = load_data()
     if verbose:
         inspect_data(df)
+    cp_offset = detect_cp_offset(df)
 
     X, y = prepare_x_y(df)
     X_train, X_test, y_train, y_test = split_data(X, y)
-    X_train_scaled, X_test_scaled = scale_data(X_train, X_test)
 
     best_k, k_scores = find_best_k(X_train, y_train)
     best_depth = find_best_tree_depth(X_train, y_train)
 
-    knn = train_knn(X_train_scaled, y_train, best_k)
-    logistic = train_logistic_regression(X_train_scaled, y_train)
+    knn = train_knn(X_train, y_train, best_k)
+    logistic = train_logistic_regression(X_train, y_train)
     tree = train_decision_tree(X_train, y_train, best_depth)
-    svm = train_svm(X_train_scaled, y_train)
+    svm = train_svm(X_train, y_train)
 
+    # Every model is a Pipeline, so it accepts raw (unscaled) rows and scales internally.
     benchmark = {
         "best_k": best_k,
         "k_scores": k_scores,
         "tree_depth": best_depth,
+        "cp_offset": cp_offset,
         "n_train": len(X_train),
         "n_test": len(X_test),
         "n_features": X.shape[1],
         "models": {
-            "KNN": evaluate_model(knn, X_test_scaled, y_test),
-            "Logistic Regression": evaluate_model(logistic, X_test_scaled, y_test),
+            "KNN": evaluate_model(knn, X_test, y_test),
+            "Logistic Regression": evaluate_model(logistic, X_test, y_test),
             "Decision Tree": evaluate_model(tree, X_test, y_test),
-            "SVM": evaluate_model(svm, X_test_scaled, y_test),
+            "SVM": evaluate_model(svm, X_test, y_test),
         },
     }
-    save_all_plots(benchmark)
+
+    try:
+        save_all_plots(benchmark)
+    except OSError as error:
+        # Saving PNGs is a bonus; it must not stop the app from starting.
+        print(f"Warning: could not save plots ({error})")
+
+    _benchmark = benchmark
     return benchmark
 
 
 # ===== Functions called by main.py =====
+def get_benchmark():
+    if _benchmark is None:
+        raise RuntimeError("Models are not trained yet. Call run_benchmark() first.")
+    return _benchmark
+
+
+def cp_options():
+    # {"1 - Typical angina": 1, ...} using the codes that actually exist in heart.csv.
+    offset = get_benchmark()["cp_offset"]
+    return {f"{offset + i} - {text}": offset + i for i, text in enumerate(CP_DESCRIPTIONS)}
+
+
+def predict_heart_disease(patient_data, model_name):
+    benchmark = get_benchmark()
+    if model_name not in MODEL_NAMES:
+        raise ValueError(f"Unknown model: {model_name!r}. Choose one of {MODEL_NAMES}.")
+    missing = [name for name in FEATURE_COLUMNS if name not in patient_data]
+    if missing:
+        raise ValueError(f"Missing patient value(s): {missing}")
+    if patient_data["cp"] not in cp_options().values():
+        raise ValueError(f"Invalid chest pain code: {patient_data['cp']}")
+
+    # One-row DataFrame with the same columns, in the same order, as the training data.
+    row = pd.DataFrame([[patient_data[name] for name in FEATURE_COLUMNS]], columns=FEATURE_COLUMNS)
+
+    model = benchmark["models"][model_name]["model"]
+    predicted = int(model.predict(row)[0])
+    probabilities = {int(c): float(p) for c, p in zip(model.classes_, model.predict_proba(row)[0])}
+    return {
+        "model": model_name,
+        "prediction": predicted,
+        "meaning": TARGET_MEANINGS[predicted],
+        "probabilities": probabilities,
+    }
+
+
 def format_model_results(benchmark, model_name):
     result = benchmark["models"][model_name]
     cm = result["confusion_matrix"]

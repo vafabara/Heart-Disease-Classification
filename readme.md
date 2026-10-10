@@ -1,10 +1,17 @@
 # Heart Disease Classification ❤️
 
-A beginner-friendly Machine Learning project that compares four classification algorithms for heart disease prediction.
+A beginner-friendly Machine Learning project that predicts heart disease risk classes for new patients and compares four classification algorithms.
 
 ## 🖥️ GUI Preview
 
 ![Application GUI](assets/gui.png)
+
+## 🩺 Patient Prediction
+
+Enter a patient's health data, select a trained model, and predict the patient's risk class:
+
+- `0` — Low risk
+- `1` — High risk
 
 ## 📊 Model Comparison
 
@@ -23,14 +30,14 @@ A beginner-friendly Machine Learning project that compares four classification a
   </tr>
 </table>
 
+Models are evaluated using Accuracy, Precision, Recall, F1 Score, Log Loss, and Confusion Matrices.
+
 ## 🤖 Algorithms
 
-* K-Nearest Neighbors (KNN)
-* Logistic Regression
-* Decision Tree
-* Support Vector Machine (SVM)
-
-Models are evaluated using Accuracy, Precision, Recall, F1 Score, Log Loss, and Confusion Matrices.
+- K-Nearest Neighbors (KNN)
+- Logistic Regression
+- Decision Tree
+- Support Vector Machine (SVM)
 
 ## ⚙️ Installation & Usage
 
