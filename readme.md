@@ -4,7 +4,13 @@ A beginner-friendly Machine Learning project that predicts heart disease risk cl
 
 ## 🖥️ GUI Preview
 
-![Application GUI](assets/gui.png)
+<table>
+  <tr>
+    <td align="center"><img src="assets/gui.png" alt="Main GUI" width="100%"></td>
+    <td align="center"><img src="assets/gui2.png" alt="Patient Prediction GUI" width="100%"></td>
+    <td align="center"><img src="assets/gui3.png" alt="Add Patient GUI" width="100%"></td>
+  </tr>
+</table>
 
 ## 🩺 Patient Prediction & Dataset Management
 
