@@ -1,17 +1,17 @@
 # Heart Disease Classification ❤️
 
-A beginner-friendly Machine Learning project that predicts heart disease risk classes for new patients and compares four classification algorithms.
+A beginner-friendly Machine Learning project that predicts heart disease risk classes and compares four classification algorithms.
 
 ## 🖥️ GUI Preview
 
 ![Application GUI](assets/gui.png)
 
-## 🩺 Patient Prediction
+## 🩺 Patient Prediction & Dataset Management
 
-Enter a patient's health data, select a trained model, and predict the patient's risk class:
-
-- `0` — Low risk
-- `1` — High risk
+- Predict patient risk: `0` (Low Risk) or `1` (High Risk).
+- Add new patients directly through the GUI and save records to `heart.csv`.
+- Select the verified class label (`0` or `1`) for each new patient.
+- Automatically retrain all four models and update performance comparisons.
 
 ## 📊 Model Comparison
 
@@ -32,24 +32,10 @@ Enter a patient's health data, select a trained model, and predict the patient's
 
 Models are evaluated using Accuracy, Precision, Recall, F1 Score, Log Loss, and Confusion Matrices.
 
-## 🤖 Algorithms
-
-- K-Nearest Neighbors (KNN)
-- Logistic Regression
-- Decision Tree
-- Support Vector Machine (SVM)
-
 ## ⚙️ Installation & Usage
-
-Install the required libraries:
 
 ```bash
 pip install pandas numpy matplotlib scikit-learn
-```
-
-Run the application:
-
-```bash
 python main.py
 ```
 

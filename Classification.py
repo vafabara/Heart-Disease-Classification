@@ -67,6 +67,82 @@ def load_data():
     return df
 
 
+# ===== Add a labelled patient to the CSV dataset =====
+def add_patient_to_dataset(patient_data, target):
+    """Append a confirmed, labelled patient row while preserving heart.csv's schema.
+
+    The project dataset commonly uses original names such as ``age``, ``exng``,
+    ``caa``, ``restecg``, ``thalachh`` and ``output``. The models use the
+    normalized names in FEATURE_COLUMNS, so this function maps values back to
+    whichever matching column names are already present in the CSV. Unused
+    source columns are left blank for the new row; they are not model features.
+    """
+    if not isinstance(patient_data, dict):
+        raise TypeError("patient_data must be a dictionary.")
+
+    missing = [name for name in FEATURE_COLUMNS if name not in patient_data]
+    if missing:
+        raise ValueError(f"Missing patient value(s): {missing}")
+
+    try:
+        target = int(target)
+    except (TypeError, ValueError):
+        raise ValueError("target must be 0 (Low-risk class) or 1 (High-risk class).") from None
+    if target not in TARGET_MEANINGS:
+        raise ValueError("target must be 0 (Low-risk class) or 1 (High-risk class).")
+
+    cleaned_values = {}
+    for name in FEATURE_COLUMNS:
+        try:
+            value = float(patient_data[name])
+        except (TypeError, ValueError):
+            raise ValueError(f"'{name}' must be numeric.") from None
+        if not np.isfinite(value):
+            raise ValueError(f"'{name}' must be a finite number.")
+        cleaned_values[name] = int(value) if value.is_integer() else value
+
+    if not DATA_PATH.exists():
+        raise FileNotFoundError(f"Dataset not found: {DATA_PATH}")
+
+    raw_df = pd.read_csv(DATA_PATH)
+    if raw_df.empty or len(raw_df.columns) == 0:
+        raise ValueError("heart.csv is empty or has no header row.")
+
+    # Normalize column names only for matching. Keep the original CSV headers intact.
+    normalized_to_raw = {}
+    for raw_column in raw_df.columns:
+        stripped_name = str(raw_column).strip()
+        normalized_name = COLUMN_RENAMES.get(stripped_name.lower(), stripped_name)
+        normalized_to_raw[normalized_name] = raw_column
+
+    missing_columns = [name for name in FEATURE_COLUMNS + ["target"] if name not in normalized_to_raw]
+    if missing_columns:
+        raise ValueError(
+            f"heart.csv is missing expected column(s): {missing_columns}. "
+            f"Columns found: {list(raw_df.columns)}"
+        )
+
+    # Populate the known features/label. Keep any other original dataset columns,
+    # assigning missing values to those fields because this project doesn't collect them.
+    new_row = {column: np.nan for column in raw_df.columns}
+    for name, value in cleaned_values.items():
+        new_row[normalized_to_raw[name]] = value
+    new_row[normalized_to_raw["target"]] = target
+
+    updated_df = pd.concat([raw_df, pd.DataFrame([new_row], columns=raw_df.columns)], ignore_index=True)
+
+    # Replace through a temporary sibling file so a failed write doesn't truncate heart.csv.
+    temp_path = DATA_PATH.with_name(f"{DATA_PATH.stem}.tmp{DATA_PATH.suffix}")
+    try:
+        updated_df.to_csv(temp_path, index=False)
+        temp_path.replace(DATA_PATH)
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+    return len(updated_df)
+
+
 def inspect_data(df):
     target_counts = df["target"].value_counts().sort_index()
     print("========== DATASET INSPECTION ==========")
