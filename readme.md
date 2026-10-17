@@ -2,6 +2,8 @@
 
 A beginner-friendly Machine Learning project that predicts heart disease risk classes and compares four classification algorithms.
 
+> **⚠️ Disclaimer:** This is an educational and practice project developed for learning Machine Learning. It is **not medically validated** and must not be used for real-world medical diagnosis, treatment decisions, or clinical purposes.
+
 ## 🖥️ GUI Preview
 
 <table>
@@ -37,6 +39,12 @@ A beginner-friendly Machine Learning project that predicts heart disease risk cl
 </table>
 
 Models are evaluated using Accuracy, Precision, Recall, F1 Score, Log Loss, and Confusion Matrices.
+
+### 🏆 Best Performing Model: KNN
+
+Based on the evaluation results, **K-Nearest Neighbors (KNN)** achieved the best overall performance for identifying the high-risk class (`1`), considering Accuracy, Recall (Sensitivity), and F1 Score among the evaluated models.
+
+These results apply only to the dataset and evaluation setup used in this educational project. They do not establish clinical accuracy or medical reliability.
 
 ## ⚙️ Installation & Usage
 
